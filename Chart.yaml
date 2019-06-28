@@ -1,0 +1,10 @@
+apiVersion: v1
+description: >
+  Helm chart for spaces, a service for managing spaces for Qlik Elastic
+name: spaces
+version: 2.2.2
+appVersion: 1.2.1
+keywords:
+home: https://www.qlik.com
+sources:
+- https://github.com/qlik-trial/spaces

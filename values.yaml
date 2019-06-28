@@ -1,0 +1,181 @@
+## Default values for Spaces Helm Chart.
+## This is a YAML-formatted file.
+## Declare variables to be passed into your templates.
+
+## Override the name of the Chart.
+##
+# nameOverride:
+
+
+## Image configuration
+##
+image:
+  ## Default registry where this repository should be pulled from. Will be overridden by `global.imageRegistry` if set
+  registry: qliktech-docker.jfrog.io
+  ## Spaces image
+  repository: spaces
+  ## Spaces image version
+  ## ref: https://hub.docker.com/r/qlik/spaces/tags/
+  tag: 1.2.1
+
+  ## Specify a imagePullPolicy: 'Always' if imageTag is 'latest', else set to 'IfNotPresent'.
+  ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+  ##
+  # pullPolicy:
+
+## Secrets for pulling images from a private docker registry.
+##
+imagePullSecrets:
+  - name: artifactory-docker-secret
+
+## Number of replicas.
+##
+replicaCount: 1
+
+## Resources configuration
+##
+resources: {}
+
+## Number of seconds to wait during pod termination after sending SIGTERM until SIGKILL.
+##
+terminationGracePeriodSeconds: 30
+
+
+## Service configuration.
+## ref: https://kubernetes.io/docs/user-guide/services/
+##
+service:
+  type: ClusterIP
+  port: 6080
+
+## Ingress configuration.
+## ref: https://kubernetes.io/docs/user-guide/ingress/
+##
+ingress:
+  enabled: true
+  ## Annotations to be added to the ingress.
+  ##
+  annotations: []
+
+  ## class provides an kubernetes.io/ingress.class override of default nginx
+  class: "nginx"
+
+  ## authURL override of default http://{.Release.Name}.{.Release.Namespace}.svc.cluster.local:8080/v1/auth
+  # authURL:
+
+## Metrics configuration
+##
+metrics:
+  ## Prometheus configuration
+  prometheus:
+    ## prometheus.enabled determines whether the annotations for prometheus scraping are included
+    enabled: true
+
+
+## Spaces service configuration
+##
+config:
+  ## Log level configuration
+  ##
+  logLevel: "info"
+
+  ## Deploy environment
+  # environment:
+
+  ## Rollbar configuration
+  ##
+  rollbar:
+    ## enables Rollbar error alerts
+    enabled: false
+    # token:
+
+  ## Authentication configuration
+  ##
+  auth:
+    # toggle JWT validation using retrieved keys from the configured JWKS endpoint
+    enabled: true
+    # endpoint to retrieve the JWKS - override the default of http://{.Release.Name}-keys:8080/v1/keys/qlik.api.internal
+    # jwksURI:
+    # expected `audience` value within the JWT claims
+    jwtAud: qlik.api.internal
+    # expected `issuer` value within the JWT claims
+    jwtIss: qlik.api.internal
+
+  ## Service to Service authentication configuration
+  ##
+  token:
+    privateKey: |
+      -----BEGIN EC PRIVATE KEY-----
+      MIGkAgEBBDBAmdPotVU4qLW1COM3RTZc0Ug79CPSYf4Q26olazhwnaEZ/lKrrBEZ
+      mf6AgZtSgamgBwYFK4EEACKhZANiAAR6nul25h6ZxFVWpYp775Xub6RpzAgoLXwD
+      bK4FVsFAYtQoJMEA7bd9HpAZ/9TnL7CX2f1CUXl+CrJ+Tw9ySk8qr/Ne8ZMw2D+6
+      g3WwH4piA+OvSNCwd1E78mDFsYQj9uo=
+      -----END EC PRIVATE KEY-----
+    kid: j3MbBtOiEib3tLcVbvscwehV3K0WAZVFBp3ysfsdksg
+    uri: "http://{{ .Release.Name }}-edge-auth:8080/v1/internal-tokens"
+    ## for localdev use this configuration instead
+    # uri: "http://edge-auth:8080/v1/internal-tokens"
+
+  ## Messaging
+  ##
+  messaging:
+    ## toggle for enabling messaging functionalities
+    enabled: true
+    ## pod label required to allow communication with NATS
+    podLabel:
+      key: "{{ .Release.Name }}-nats-client"
+      value: true
+    ## NATS configuration
+    ##
+    nats:
+      ## NATS server address
+      addr: "nats://{{ .Release.Name }}-nats-client:4222"
+      ## for localdev use this configuration instead
+      # addr: "nats://messaging-nats-client:4222"
+    ## NATS Streaming configuration
+    ##
+    stan:
+      ## NATS Streaming cluster ID
+      clusterID: "{{ .Release.Name }}-nats-streaming-cluster"
+      ## for localdev use this configuration instead
+      # clusterID: "messaging-nats-streaming-cluster"
+
+  ## Access Control / rules enforcement setup
+  ##
+  accessControl:
+    ## when enabled, rules are enforced
+    enabled: true
+    ## endpoint to reach the policy-decision-service - override the default of http://{.Release.Name}-policy-decisions:5080
+    # pdsURI:
+
+## MongoDB configuration
+##
+mongodb:
+  image:
+    ## Bitnami MongoDB image tag
+    ## ref: https://hub.docker.com/r/bitnami/mongodb/tags/
+    ## This value overrides the mongo image tag in chart v.4.5.0 (tag: 4.0.3-debian-9)
+    tag: 3.6.6-debian-9
+  ## Enables a local mongo chart dependency
+  enabled: false
+  ## disable password for local dev mode
+  usePassword: false
+
+  ## Specify a custom mongo uri. Not needed when the local mongo is enabled.
+  ## Secret: {{ .Release.Name }}-mongoconfig.mongodb-uri
+  # uri:
+
+  ## name of secret to mount for mongo URI. The secret must have the `mongodb-uri` key
+  # uriSecretName:
+
+## Horizontal pod autoscaler
+hpa:
+  ## Toggle horizontal pod autoscaler
+  enabled: false
+  ## Minimum number of replicas
+  minReplicas: 3
+  ## Maximum number of replicas
+  maxReplicas: 6
+  ## See https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#algorithm-details
+  targetAverageUtilizationCpu: 80
+  targetAverageUtilizationMemory: 80

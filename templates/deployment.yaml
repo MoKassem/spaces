@@ -1,0 +1,115 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "spaces.fullname" . }}
+  labels:
+    app: {{ template "spaces.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "spaces.name" . }}
+        release: {{ .Release.Name }}
+        {{- if .Values.config.messaging.enabled }}
+        {{ tpl ( .Values.config.messaging.podLabel.key ) . }}: {{ .Values.config.messaging.podLabel.value | quote }}
+        {{- end }}
+    spec:
+      containers:
+        - name: {{ template "spaces.name" . }}
+          image: {{ template "spaces.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          {{- if .Values.resources }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          {{- end }}
+          env:
+            - name: TERMINATION_GRACE_PERIOD_SECONDS
+              value: {{ .Values.terminationGracePeriodSeconds | quote }}
+            - name: ENVIRONMENT
+              value: {{ .Values.config.environment | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            - name: ROLLBAR_ENABLED
+              value: {{ .Values.config.rollbar.enabled | quote }}
+            {{- if .Values.config.rollbar.enabled }}
+            - name: ROLLBAR_TOKEN
+              value: {{ required "A valid .Values.rollbar.token entry required!" (.Values.config.rollbar.token | quote) }}
+            {{- end }}
+            - name: MESSAGING_ENABLED
+              value: {{ .Values.config.messaging.enabled | quote }}
+            {{- if .Values.config.messaging.enabled }}
+            - name: MESSAGING_NATS_ADDR
+              value: {{ tpl ( .Values.config.messaging.nats.addr ) . | quote }}
+            - name: MESSAGING_STAN_CLUSTER_ID
+              value: {{ tpl ( .Values.config.messaging.stan.clusterID ) . | quote }}
+            {{- end }}
+            - name: AUTH_ENABLED
+              value: {{ .Values.config.auth.enabled | quote }}
+            - name: AUTH_JWKS_URI
+              value: {{ default (printf "http://%s-keys:8080/v1/keys/qlik.api.internal" .Release.Name ) .Values.config.auth.jwksURI | quote }}
+            {{- if .Values.config.auth.jwtAud }}
+            - name: AUTH_JWT_AUD
+              value: {{ .Values.config.auth.jwtAud | quote }}
+            {{- end -}}
+            {{- if .Values.config.auth.jwtIss }}
+            - name: AUTH_JWT_ISS
+              value: {{ .Values.config.auth.jwtIss | quote }}
+            {{- end }}
+            - name: TOKEN_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "spaces.fullname" . }}-tokenconfig
+                  key: token-privateKey
+            - name: TOKEN_KID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "spaces.fullname" . }}-tokenconfig
+                  key: token-kid
+            - name: TOKEN_URI
+              value: {{ tpl ( .Values.config.token.uri ) . | quote }}
+            - name: ACCESS_CONTROL_ENABLED
+              value: {{ .Values.config.accessControl.enabled | quote }}
+            {{- if .Values.config.accessControl.enabled }}
+            - name: ACCESS_CONTROL_PDS_URI
+              value: {{ default (printf "http://%s-policy-decisions:5080" .Release.Name ) .Values.config.accessControl.pdsURI | quote }}
+            {{- end }}
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  {{ if .Values.mongodb.uriSecretName -}}
+                  name: {{ .Values.mongodb.uriSecretName }}
+                  {{ else -}}
+                  name: {{ .Release.Name }}-mongoconfig
+                  {{ end -}}
+                  key: mongodb-uri
+{{- if .Values.global }}{{- if .Values.global.certs }}{{- if .Values.global.certs.enabled }}
+          volumeMounts:
+{{- include "qlik.ca-certificates.volumeMount" . | nindent 12 }}
+{{- end }}{{- end }}{{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.service.port }}
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: {{ .Values.service.port }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 8 }}
+      {{- end }}
+{{- if .Values.global }}{{- if .Values.global.certs }}{{- if .Values.global.certs.enabled }}
+      volumes:
+{{- include "qlik.ca-certificates.volume" . | nindent 8 }}
+{{- end }}{{- end }}{{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+  selector:
+    matchLabels:
+      app: {{ template "spaces.name" . }}
+      release: {{ .Release.Name }}
